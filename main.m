@@ -1,61 +1,82 @@
-clear
-clc
+clear; clc; close all;
 
-% We are making the robot follow a flat circular trajectory with a radius of 2 meters
+%% Simulation parameters
+T  = 200;       % total time steps
+Ts = 0.05;      % time step
+N  = 15;        % prediction horizon
 
-nx = 8;
-nu = 5;
-N  = 15;
-T  = 300;
-Ts = 0.05;
-R_traj = 2.0;
-omega_c = 2*pi / (T * Ts);
-g = 9.81;
+%% Waypoints for trajectory
+x_waypoints = [0 2 4 6];
+y_waypoints = [0 1 2 0];
+v_des = 1.0;
 
-X_ref = zeros(nx,T+1);
-U_ref = zeros(nu,T);
+%% Generate reference trajectory
+[xref, uref, tq] = reference_generator(x_waypoints, y_waypoints, v_des, T);
+nx = size(xref,1);
+nu = size(uref,1);
 
-for k = 1:T+1
-    t_k = (k-1) * Ts;
-    X_ref(1,k) = R_traj * cos(omega_c * t_k); % X
-    X_ref(2,k) = R_traj * sin(omega_c * t_k); % Y
-    X_ref(3,k) = 0; % Z
-    X_ref(4,k) = -R_traj * omega_c * sin(omega_c * t_k); % Vx
-    X_ref(5,k) = R_traj * omega_c * cos(omega_c * t_k); % Vy
-    X_ref(6,k) = 0; % Vz
-    X_ref(7,k) = atan2(X_ref(5,k), X_ref(4,k)); % psi
-    X_ref(8,k) = 0; % theta
-end
-for k= 1:T
-    U_ref(1,k) = 0;  % ax
-    U_ref(2,k) = R_traj * omega_c^2; % ay
-    U_ref(3,k) = g; % az
-    U_ref(4,k) = 0; % omega_by
-    U_ref(5,k) = omega_c; % omega_bz
-end
-
-Q = diag([10, 10, 0.1, 1, 1, 0.1, 5, 1]);
-R = diag([0.1, 0.1, 0.1, 1.0, 0.5]);
-
-[Ad0, Bd0] = linearize(X_ref(:,1), U_ref(:,1));
+%% Initial linearization to get terminal cost
+[Ad0, Bd0] = linearize(xref(:,1), uref(:,1));
+Q  = diag([10, 10, 0.1, 1, 1, 0.1, 5, 1]);
+R  = diag([0.1, 0.1, 0.1, 1, 0.5]);
 Qf = dare(Ad0, Bd0, Q, R);
 
-x = X_ref(:,1) + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]; % Put initial disturbance here
+%% Initial state
+x0 = xref(:,1);  % can add initial disturbance
+x  = x0;
+
+%% Storage
 X_hist = zeros(nx, T);
+U_hist = zeros(nu, T);
 
+%% MPC simulation loop
 for k = 1:T
-    i = min(k + N, T + 1);
-    n = i - k;
-    if n >= N
-        X_win = X_ref(:, k:k+N);
-        U_win = U_ref(:, k:k+N-1);
-    else
-        X_win = [X_ref(:,k:i), repmat(X_ref(:,end), 1, N - n)]; % Filling the rest of the matrix with the same vector to avoid a crash
-        U_win = [U_ref(:,k:min(k+N-1, T)), repmat(U_ref(:,end), 1, N - n)]; % Filling the rest of the matrix with the same vector to avoid a crash
-    end
+    % Define current prediction window
+    i = min(k+N-1, T);
+    X_win = xref(:, k:i);
+    U_win = uref(:, k:i);
 
-    xr = X_ref(:, k);
+    % Current reference state
+    xr = xref(:, k);
+
+    % Compute MPC control input
     u = mpc_controller(x, xr, X_win, U_win, Qf);
-    x = rk4Integrator(x, u);
+
+    % Apply control input using RK4 integrator
+    x = rk4Integrator(x, u, Ts);
+
+    % Store results
     X_hist(:, k) = x;
+    U_hist(:, k) = u;
 end
+
+%% Plot position
+figure;
+subplot(3,1,1);
+plot(tq, X_hist(1,:), 'r', tq, xref(1,:), 'r--'); hold on;
+plot(tq, X_hist(2,:), 'b', tq, xref(2,:), 'b--');
+xlabel('Time [s]'); ylabel('Position [m]');
+legend('X actual','X ref','Y actual','Y ref'); grid on;
+
+%% Plot velocity
+subplot(3,1,2);
+plot(tq, X_hist(4,:), 'r', tq, xref(4,:), 'r--'); hold on;
+plot(tq, X_hist(5,:), 'b', tq, xref(5,:), 'b--');
+xlabel('Time [s]'); ylabel('Velocity [m/s]');
+legend('Vx','Vx ref','Vy','Vy ref'); grid on;
+
+%% Plot orientation
+subplot(3,1,3);
+plot(tq, X_hist(7,:), 'r', tq, xref(7,:), 'r--'); hold on;
+plot(tq, X_hist(8,:), 'b', tq, xref(8,:), 'b--');
+xlabel('Time [s]'); ylabel('Orientation [rad]');
+legend('Psi','Psi ref','Theta','Theta ref'); grid on;
+
+%% 3D trajectory
+figure;
+plot3(X_hist(1,:), X_hist(2,:), X_hist(3,:), 'b', 'LineWidth', 2); hold on;
+plot3(xref(1,:), xref(2,:), xref(3,:), 'r--', 'LineWidth', 2);
+xlabel('X [m]'); ylabel('Y [m]'); zlabel('Z [m]');
+grid on; axis equal;
+legend('Actual trajectory','Reference trajectory');
+title('MPC Trajectory Tracking');
