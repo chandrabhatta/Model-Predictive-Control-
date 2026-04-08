@@ -1,79 +1,34 @@
-function [Aineq,bineq] = build_constraints(x0, xref, uref)
+function [Aineq, bineq] = build_constraints(dx0, X_ref_win, U_ref_win)
 
-nx = 8;   % nx = 8
-nu = 5;   % nu = 5
-N  = 100; % N = 100
+%nx = size(X_ref_win,1); % calculate size of reference based on argument provided
+nu = size(U_ref_win,1); % calculate size of input based on argument provided
+N  = size(U_ref_win,2); % calculate the horizon length
 
-% Input constraints:
+% --- Input limits ---
 u_min = [-2; -1; -0.5; -0.3; -0.5];
 u_max = [ 2;  1;  0.5;  0.3;  0.5];
 
-Au = [eye(nu); -eye(nu)];
-bu = [u_max; -u_min];
+Umin = repmat(u_min, N, 1);
+Umax = repmat(u_max, N, 1);
 
-% Stack over the horizon:
+A_u = [eye(N*nu); -eye(N*nu)];
+b_u = [Umax; -Umin];
 
-Eu = kron(eye(N),Au);
-bu_stack = repmat(bu, N, 1);
+% --- State limits ---
+% Define reasonable limits (adjust as needed)
+x_min = [-Inf; -Inf; -0.1; -2; -2; -0.5; -pi; -pi/6];
+x_max = [ Inf;  Inf; 0.1;  2;  2;  0.5;  pi;  pi/6];
 
-% State constraints:
-x_min = [-1; -1; 0;   -1;  -0.5; -0.2; -0.26; -pi];
-x_max = [ 5;  5; 1;    1;   0.5;  0.2;  0.26;  pi];
+Xmin = repmat(x_min, N, 1);
+Xmax = repmat(x_max, N, 1);
 
-% Stack state constraints over the horizon:
-Fx = kron(eye(N), [eye(nx); -eye(nx)]);
-bx = repmat([x_max; -x_min], N, 1);
+% --- Rollout prediction: F*dx0 + G*U gives predicted deviation ---
+[F,G] = rolloutPrediction(X_ref_win, U_ref_win);
 
-% Linearize crater obstacles:
+A_x = [ G; -G ];
+b_x = [ Xmax - F*dx0; -Xmin + F*dx0 ];
 
-crater_centers = [1 1.5; 3 2.5];
-crater_radius  = [0.4, 0.3];
-
-n_craters = size(crater_centers,1);
-
-F_obs = [];
-b_obs = [];
-
-for k = 1:N
-
-    px0 = xref(1);
-    py0 = xref(2);
-    
-    for i = 1:n_craters
-        
-        xc = crater_centers(i,1);
-        yc = crater_centers(i,2);
-        r  = crater_radius(i);
-        
-        % Gradient (normal direction)
-        a = px0 - xc;
-        b = py0 - yc;
-        
-        % Linearized constraint
-        c = a*px0 + b*py0 - r^2;
-        
-        % Build row for full state vector
-        F_row = zeros(1, nx*N);
-        
-        idx = (k-1)*nx + 1;
-        F_row(idx)   = a; % Px
-        F_row(idx+1) = b; % Py
-        
-        F_obs = [F_obs; F_row];
-        b_obs = [b_obs; c];
-    end
-end
-
-F_total = [Fx; F_obs];
-b_total = [bx; b_obs];
-
-
-[P, S] = rolloutPrediction(xref, uref);
-
-Aineq = [F_total * S;
-         Eu];
-
-bineq = [b_total - F_total * P * x0;
-         bu_stack];
+Aineq = [A_u; A_x];
+bineq = [b_u; b_x];
 
 end
