@@ -1,26 +1,37 @@
 function u = mpc_controller(x, xr, X_ref_win, U_ref_win, Qf)
 
-N = 15;
+N  = size(U_ref_win,2);
+nu = size(U_ref_win,1);
 
 dx0 = x - xr;
-% Wrapping yaw error
-dx0(7) = atan2(sin(dx0(7)), cos(dx0(7)));
 
+% Rollout prediction
 [F,G] = rolloutPrediction(X_ref_win, U_ref_win);
 
-nx = size(Ad,1);
-nu = size(Bd,2);
-
+% Weight matrices
 Q  = diag([10, 10, 0.1, 1, 1, 0.1, 5, 1]);
 R  = diag([0.1, 0.1, 0.1, 1, 0.5]);
 
-[H,f] = build_cost(F,G,dx0,Q,R,Qf,N);
-[Aineq,bineq] = build_constraints(dx0, X_ref_win, U_ref_win);
+% Stack reference input over horizon
+U_ref_stack = reshape(U_ref_win, [], 1);
 
-options = optimoptions('quadprog','Display','off');
+% Build cost
+[H, f] = build_cost(F, G, dx0, Q, R, Qf, U_ref_stack);
 
-U = quadprog(H,f,Aineq,bineq,[],[],[],[],[],options);
+% Build constraints
+[Aineq, bineq] = build_constraints(dx0, X_ref_win, U_ref_win);
 
+% Solve QP
+options = optimoptions(@quadprog,'Display','off');
+[U,~,exitflag] = quadprog(H, f, Aineq, bineq, [], [], [], [], [], options);
+
+% Fallback if solver fails
+if exitflag <= 0
+    warning('MPC QP failed, applying reference input');
+    U = U_ref_stack;
+end
+
+% Apply first control input
 u = U(1:nu);
 
 end
