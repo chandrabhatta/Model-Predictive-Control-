@@ -1,4 +1,3 @@
-
 function [H, f] = build_cost(F, G, dx0, Q, R, Qf, U_ref_stack)
 
 % Inputs:
@@ -23,7 +22,7 @@ Rbar = kron(eye(N), R);
 H = G' * Qbar * G + Rbar;
 
 % Linear term with reference tracking
-f = G' * Qbar * (F*dx0);
+f = G' * Qbar * (F*dx0) - Rbar * U_ref_stack;
 
 % Ensure symmetry of H for quadprog
 H = (H + H')/2;

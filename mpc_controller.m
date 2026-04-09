@@ -4,8 +4,6 @@ function u = mpc_controller(x, xr, X_ref_win, U_ref_win, Qf)
 nu = size(U_ref_win,1);
 
 dx0 = x - xr;
-% Wrapping
-dx0(7) = atan2(sin(dx0(7)), cos(dx0(7)));
 
 % Rollout prediction
 [F,G] = rolloutPrediction(X_ref_win, U_ref_win);
@@ -30,11 +28,10 @@ options = optimoptions(@quadprog,'Display','off');
 % Fallback if solver fails
 if exitflag <= 0
     warning('MPC QP failed, applying reference input');
-    U = zeros(size(U_ref_stack));
+    U = U_ref_stack;
 end
 
 % Apply first control input
-u = U_ref_win(:,1) + U(1:nu);
+u = U(1:nu);
 
 end
-

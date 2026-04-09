@@ -1,4 +1,3 @@
-
 %% Generate a reference trajectory for MPC
 
 function [xref, uref, tq] = reference_generator(x, y, v_des, N)

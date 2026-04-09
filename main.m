@@ -40,14 +40,9 @@ U_hist = zeros(nu, T);
 for k = 1:T
     % Define current prediction window
     i = min(k+N-1, T);
-    n_avail = i - k + 1;
     X_win = xref(:, k:i);
     U_win = uref(:, k:i);
-    % Keeping the horizon
-    if n_avail < N
-        X_win = [X_win, repmat(xref(:,end), 1, N - n_avail)];
-        U_win = [U_win, repmat(uref(:,end), 1, N - n_avail)];
-    end
+
     % Current reference state
     xr = xref(:, k);
 
@@ -55,7 +50,7 @@ for k = 1:T
     u = mpc_controller(x, xr, X_win, U_win, Qf);
 
     % Apply control input using RK4 integrator
-    x = rk4Integrator(x, u);
+    x = rk4Integrator(x, u, Ts);
 
     % Store results
     X_hist(:, k) = x;
@@ -92,3 +87,4 @@ xlabel('X [m]'); ylabel('Y [m]'); zlabel('Z [m]');
 grid on; axis equal;
 legend('Actual trajectory','Reference trajectory');
 title('MPC Trajectory Tracking');
+
