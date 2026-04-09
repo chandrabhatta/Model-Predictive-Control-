@@ -10,9 +10,10 @@ u_max = [ 3;  2;  2;  1;  1];
 
 Umin = repmat(u_min, N, 1);
 Umax = repmat(u_max, N, 1);
+U_ref_stack = reshape(U_ref_win, [], 1);
 
 A_u = [eye(N*nu); -eye(N*nu)];
-b_u = [Umax; -Umin];
+b_u = [Umax - U_ref_stack; -Umin + U_ref_stack];
 
 % --- State limits ---
 % Define reasonable limits (adjust as needed)
