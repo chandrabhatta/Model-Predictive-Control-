@@ -4,6 +4,8 @@ N  = size(U_ref_win,2);
 nu = size(U_ref_win,1);
 
 dx0 = x - xr;
+% Wrapping
+dx0(7) = atan2(sin(dx0(7)), cos(dx0(7)));
 
 % Rollout prediction
 [F,G] = rolloutPrediction(X_ref_win, U_ref_win);
