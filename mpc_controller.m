@@ -9,8 +9,9 @@ dx0 = x - xr;
 [F,G] = rolloutPrediction(X_ref_win, U_ref_win);
 
 % Weight matrices
-Q  = diag([10, 10, 10, 1, 1, 0.1, 5, 1]);
-R  = diag([0.1, 0.1, 0.1, 1, 0.5]);
+%Q  = diag([10, 10, 1e-6, 1, 1, 0.1, 5, 1]);
+Q = diag([2000 2000 1000000 200 200 200 5 50]);
+R  = diag([0.1, 0.1, 0.1, 100, 0.5]);
 
 % Stack reference input over horizon
 U_ref_stack = reshape(U_ref_win, [], 1);

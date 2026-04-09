@@ -1,6 +1,7 @@
 function [Phi, Gamma] = rolloutPrediction(X_ref_win, U_ref_win)
 
-N  = 15;
+N = size(U_ref_win, 2);
+
 nx = size(X_ref_win, 1);
 nu = size(U_ref_win, 1);
 
@@ -9,11 +10,13 @@ Gamma = zeros(N*nx, N*nu);
 
 Ad_seq = cell(N, 1);
 Bd_seq = cell(N, 1);
+
 for i = 1:N
     [Ad_seq{i}, Bd_seq{i}] = linearize(X_ref_win(:, i), U_ref_win(:, i));
 end
 
 A_prod = eye(nx);
+
 for i = 1:N
     A_prod = Ad_seq{i} * A_prod;
     Phi((i-1)*nx+1 : i*nx, :) = A_prod;
@@ -28,4 +31,5 @@ for j = 1:N
         end
     end
 end
+
 end

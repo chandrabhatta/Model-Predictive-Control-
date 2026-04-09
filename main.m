@@ -3,7 +3,7 @@ clear; clc; close all;
 %% Simulation parameters
 T  = 200;       % total time steps
 Ts = 0.05;      % time step
-N  = 15;        % prediction horizon
+N  = 30;        % prediction horizon
 
 %% Waypoints for trajectory
 x_waypoints = [0 2 4 6];
@@ -23,10 +23,12 @@ for i = 1:size(uref,1)
 end
 
 %% Initial linearization to get terminal cost
-Q  = diag([10, 10, 0.1, 1, 1, 0.1, 5, 1]);
-R  = diag([0.1, 0.1, 0.1, 1, 0.5]);
+%Q  = diag([10, 10, 1e-10, 1, 1, 0.1, 5, 1]); % 0.1, 0.1 at 6 originally
+Q = diag([2000 2000 1000000 200 200 200 5 50]);
+R  = diag([0.1, 0.1, 0.1, 10, 0.5]);
 [AdN, BdN] = linearize(xref(:,end), uref(:,end));
 Qf = dare(AdN, BdN, Q, R);  % terminal cost now uses last point
+
 
 %% Initial state
 x0 = xref(:,1);  % can add initial disturbance

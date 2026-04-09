@@ -19,7 +19,7 @@ for k = 1:N
 end
 
 %% --- Define LQR weights ---
-Q  = diag([2000 2000 10000000 200 200 200 5 50]);    % penalize position and orientation error
+Q  = diag([2000 2000 1000000 200 200 200 5 50]);    % penalize position and orientation error
 R  = diag([0.1 0.1 0.1 0.1 0.1]);   % penalize control effort lightly
 Qf = Q;                             % terminal weight
 
