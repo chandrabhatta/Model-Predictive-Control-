@@ -35,7 +35,11 @@ for k = 1:T
     i = min(k+N-1, T);
     X_win = xref(:, k:i);
     U_win = uref(:, k:i);
-
+    n_avail = i_end - k + 1;
+    if n_avail < N
+        X_win = [X_win, repmat(xref(:,end), 1, N - n_avail)];
+        U_win = [U_win, repmat(uref(:,end), 1, N - n_avail)];
+    end
     % Current reference state
     xr = xref(:, k);
 
@@ -43,7 +47,7 @@ for k = 1:T
     u = mpc_controller(x, xr, X_win, U_win, Qf);
 
     % Apply control input using RK4 integrator
-    x = rk4Integrator(x, u, Ts);
+    x = rk4Integrator(x, u);
 
     % Store results
     X_hist(:, k) = x;
