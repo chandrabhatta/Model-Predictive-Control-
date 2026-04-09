@@ -30,10 +30,10 @@ options = optimoptions(@quadprog,'Display','off');
 % Fallback if solver fails
 if exitflag <= 0
     warning('MPC QP failed, applying reference input');
-    U = U_ref_stack;
+    U = zeros(size(U_ref_stack));
 end
 
 % Apply first control input
-u = U(1:nu);
+u = U_ref_win(:,1) + U(1:nu);
 
 end
