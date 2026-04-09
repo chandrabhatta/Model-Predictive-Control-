@@ -22,7 +22,7 @@ Rbar = kron(eye(N), R);
 H = G' * Qbar * G + Rbar;
 
 % Linear term with reference tracking
-f = G' * Qbar * (F*dx0) - Rbar * U_ref_stack;
+f = G' * Qbar * (F*dx0);
 
 % Ensure symmetry of H for quadprog
 H = (H + H')/2;
