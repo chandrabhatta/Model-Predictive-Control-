@@ -87,9 +87,19 @@ for k = 1:T
 
     x_aug_pred = [x_pred; d_pred];
 
-    % Simple Jacobian
-    F = eye(nx_aug);
-    F(1:nx, nx+1:end) = eye(nx);
+    % Jacobian:
+    [Ad, Bd, ~] = linearize(xk, u_prev);
+
+    F = zeros(nx_aug, nx_aug);
+
+    % nominal linearized dynamics
+    F(1:nx,1:nx) = Ad;
+
+    % disturbance enters additively
+    F(1:nx,nx+1:end) = eye(nx);
+
+    % disturbance random walk
+    F(nx+1:end,nx+1:end) = eye(nx);
 
     P_pred = F * P * F' + Qk;
 
