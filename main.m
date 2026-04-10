@@ -64,7 +64,7 @@ for k = 1:T
     u = mpc_controller(x, xr, X_win, U_win, Qf, [], [], K_terminal);
 
     % Apply control input using RK4 integrator
-    x = rk4Integrator(x, u, Ts);
+    x = rk4Integrator(x, u);
 
     % Store results
     X_hist(:, k) = x;

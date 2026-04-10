@@ -1,4 +1,5 @@
 %% --- Generate reference trajectory ---
+
 N = 200;
 v_des = 1.0;
 
@@ -11,6 +12,7 @@ nx = size(x_ref,1);
 nu = size(u_ref,1);
 
 %% --- Linearize along trajectory ---
+
 Ad_seq = cell(1,N);
 Bd_seq = cell(1,N);
 
@@ -19,12 +21,14 @@ for k = 1:N
 end
 
 %% --- Define LQR weights ---
+
 Q  = diag([2000 2000 1000000 200 200 200 5 50]);
 R  = diag([0.1, 0.1, 0.1, 10, 0.5]);
 [AdN, BdN] = linearize(x_ref(:,end), u_ref(:,end));
 Qf = dare(AdN, BdN, Q, R);
 
 %% --- Backward Riccati recursion ---
+
 P = cell(1,N+1);
 K = cell(1,N);
 
@@ -39,6 +43,7 @@ for k = N:-1:1
 end
 
 %% --- Forward simulate LQR on nonlinear dynamics ---
+
 x = zeros(nx,N);
 u = zeros(nu,N);
 
@@ -53,6 +58,7 @@ end
 u(:,N) = u_ref(:,N) - K{N} * (x(:,N) - x_ref(:,N));
 
 %% --- Plot reference vs LQR trajectory ---
+
 figure;
 plot3(x_ref(1,:), x_ref(2,:), x_ref(3,:), 'r--','LineWidth',2); hold on;
 plot3(x(1,:), x(2,:), x(3,:), 'b','LineWidth',2); hold on;

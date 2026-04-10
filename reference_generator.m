@@ -8,7 +8,7 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
 
     % Distance (m), time (s), Speed (m/s), angle (rad), 
 
-    % --- Arc-length based timing ---
+    % Arc-length based timing
     dx = diff(x); % difference between waypoints
     dy = diff(y);
     dist = sqrt(dx.^2 + dy.^2); % distance between waypoints
@@ -17,19 +17,19 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
     %v_des = 2; % Constant speed of 2 m/s is assumed for the moon rover
     t = arc_length / v_des; % time steps
 
-    % --- Spline construction ---
+    % Spline construction 
     ppx = spline(t, x);
     ppy = spline(t, y);
 
-    % --- Query time ---
+    % Query time 
     tq = linspace(0, t(end), N);
 
-    % --- Position ---
+    % Position
     xq = ppval(ppx, tq);
     yq = ppval(ppy, tq);
     zq = lunarTerrain(xq,yq);
 
-    % --- Velocity ---
+    % Velocity
     ppx_dot = fnder(ppx);
     ppy_dot = fnder(ppy);
 
@@ -40,11 +40,11 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
 
     vz = gradient(zq, tq);
 
-    % --- Heading (Yaw) ---
+    % Heading (Yaw)
     psi = atan2(vy, vx);
     psi = unwrap(psi);
 
-    % --- Theta (Pitch) ---
+    % Theta (Pitch)
     theta = atan2(vz, sqrt(vx.^2 + vy.^2));
 
     % Visualize the lunar terrain:
@@ -58,10 +58,10 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
 
     % Input reference:
 
-    % --- Accelerations ---
+    %  Accelerations
     ax = gradient(vx, tq);
     ay = gradient(vy, tq);
-    az = gradient(vz, tq) + 1.62;   % add lunar gravity compensation (g_moon = 1.62 m/s^2)
+    az = gradient(vz, tq) + 1.62;   
 
     % Yaw rate:
     psi_dot = gradient(psi, tq);
@@ -93,7 +93,7 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
     camlight;
     lighting gouraud;
 
-    % --- State reference ---
+    % State reference 
     xref = [xq;
             yq;
             zq;
@@ -103,14 +103,13 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
             psi;
             theta];
 
-    % --- Input reference ---
+    %  Input reference 
     uref = [ax;
             ay;
             az;
             wby;
             wbz];
 
-    % --- Add terrain map Pz = h(x,y) ---
 
 end
 

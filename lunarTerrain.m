@@ -1,21 +1,12 @@
 function z = lunarTerrain(x, y)
 
-    % Base hills (low frequency)
-    %z = 0.3*sin(0.2*x) + 0.3*cos(0.2*y);
-
-    % Medium undulations
-    %z = z + 0.15*sin(0.2*x + 0.03*y);
-
-    % Optional gentle roughness
-    %z = z + 0.02*sin(0.2*x).*cos(0.2*y);
-
-     % Gentle sloped plane instead of hills/undulations
+    % sloped plane
     ax = 0.05;  % slope along x
     ay = 0.02;  % slope along y
     c  = 0.1;   % offset
     z = ax * x + ay * y + c;
 
-    % Gentle shallow craters
+    % shallow craters
     crater_centers = [3.6 0.24; 0.37 1.84];
     crater_depths = [0.08, 0.06];
     crater_sizes  = [0.4, 0.3];
