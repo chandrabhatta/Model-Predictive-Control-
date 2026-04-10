@@ -5,15 +5,18 @@ nu = size(U_ref_win,1); % calculate size of input based on argument provided
 N  = size(U_ref_win,2); % calculate the horizon length
 
 % --- Input limits ---
-u_min = [-3; -2; -2; -1; -1]; % u3 was originally -2, 2
-u_max = [ 3;  2;  2;  1;  1];
+% u = [ax, ay, az, omega_by, omega_bz]
+% az_ref ~ 1.62 m/s^2 (lunar gravity compensation); upper bound set to 3 to
+% give sufficient control authority above the hover point (net +1.38 m/s^2 up).
+u_min = [-3; -2; -2; -1; -1];
+u_max = [ 3;  2;  3;  1;  1];
 
 Umin = repmat(u_min, N, 1);
 Umax = repmat(u_max, N, 1);
-
+U_ref_stack = reshape(U_ref_win, [], 1);
 
 A_u = [eye(N*nu); -eye(N*nu)];
-b_u = [Umax; -Umin];
+b_u = [Umax - U_ref_stack; -Umin + U_ref_stack];
 
 % --- State limits ---
 % Define reasonable limits (adjust as needed)

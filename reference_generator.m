@@ -61,7 +61,7 @@ function [xref, uref, tq] = reference_generator(x, y, v_des, N)
     % --- Accelerations ---
     ax = gradient(vx, tq);
     ay = gradient(vy, tq);
-    az = gradient(vz, tq) - 1.62;   % subtract gravity (CHANGE LATER)
+    az = gradient(vz, tq) + 1.62;   % add lunar gravity compensation (g_moon = 1.62 m/s^2)
 
     % Yaw rate:
     psi_dot = gradient(psi, tq);
