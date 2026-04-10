@@ -1,20 +1,18 @@
-function u = mpc_controller(x, xr, X_ref_win, U_ref_win, Qf, Q, R)
+function u = mpc_controller(x, xr, X_ref_win, U_ref_win, Qf)
 
-if nargin < 6 || isempty(Q)
-    Q = diag([2000 2000 1000000 200 200 200 5 50]);
-end
-if nargin < 7 || isempty(R)
-    R = diag([0.1, 0.1, 0.1, 100, 0.5]);
-end
-
-N  = size(U_ref_win, 2);
-nu = size(U_ref_win, 1);
+% N  = size(U_ref_win,2);
+nu = size(U_ref_win,1);
 
 dx0 = x - xr;
-% Wrapping
-dx0(7) = atan2(sin(dx0(7)), cos(dx0(7)));
 
+% Rollout prediction
 [F,G] = rolloutPrediction(X_ref_win, U_ref_win);
+
+% Weight matrices
+%Q  = diag([10, 10, 1e-6, 1, 1, 0.1, 5, 1]);
+%Q = diag([2000 2000 1000000 200 200 200 5 50]);
+Q = diag([20000 20000 1000000 200 200 200 5 50]);
+R  = diag([0.1, 0.1, 0.1, 100, 0.5]);
 
 % Stack reference input over horizon
 U_ref_stack = reshape(U_ref_win, [], 1);
@@ -32,9 +30,10 @@ options = optimoptions(@quadprog,'Display','off');
 % Fallback if solver fails
 if exitflag <= 0
     warning('MPC QP failed, applying reference input');
-    U = [zeros(N*nu, 1); zeros(N, 1)];
+    U = U_ref_stack;
 end
 
-u = U_ref_win(:,1) + U(1:nu);
+% Apply first control input
+u = U(1:nu);
 
 end

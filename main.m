@@ -1,124 +1,140 @@
 clear; clc; close all;
 
 %% Simulation parameters
-T  = 200;       % total time steps
-Ts = 0.05;      % time step
-N  = 30;        % prediction horizon
+T  = 200;
+Ts = 0.05;
+N  = 15;
 
-%% Waypoints for trajectory
+%% Waypoints
 x_waypoints = [0 2 4 6];
 y_waypoints = [0 1 2 0];
 v_des = 1.0;
 
-%% Generate reference trajectory
+%% Reference trajectory
 [xref, uref, tq] = reference_generator(x_waypoints, y_waypoints, v_des, T);
 nx = size(xref,1);
 nu = size(uref,1);
 
-disp('Global reference input ranges:')
+%% Cost
+Q = diag([20000 20000 1000000 200 200 200 5 50]);
+R = diag([0.1, 0.1, 0.1, 10, 0.5]);
 
-for i = 1:size(uref,1)
-    fprintf('u%d: min = %.3f, max = %.3f\n', ...
-        i, min(uref(i,:)), max(uref(i,:)));
-end
-
-%% Weights and terminal ingredients
-Q  = diag([2000 2000 1000000 200 200 200 5 50]);
-R  = diag([0.1, 0.1, 0.1, 10, 0.5]);
 [AdN, BdN] = linearize(xref(:,end), uref(:,end));
 Qf = dare(AdN, BdN, Q, R);
 
-u_min = [-3; -2; -2; -1; -1];
-u_max = [ 3;  2;  2;  1;  1];
-[K_terminal, alpha] = compute_terminal_set(AdN, BdN, Q, R, Qf, u_min, u_max, uref(:,end));
-
-fprintf('Terminal Set \n');
-fprintf('Alpha (terminal set size): %.6f\n', alpha);
-Acl = AdN - BdN * K_terminal;
-fprintf('Closed-loop eigenvalue magnitudes (should be < 1):\n');
-disp(abs(eig(Acl))');
-
 %% Initial state
-x0 = xref(:,1) + [0.20; -0.10; 0; 0.05; 0; 0; 0.05; 0]; % Ininital disturbance
-x  = x0;
+x = xref(:,1);
+
+%% Disturbance
+d_true = [0; 0; 0; 0.05; -0.03; 0; 0.01; 0];
+
+%% ===== EKF INITIALIZATION =====
+nx_aug = 2*nx;
+
+x_aug_hat = zeros(nx_aug,1);
+P = 0.1 * eye(nx_aug);
+
+Qk = 0.01 * eye(nx_aug);
+Rk = 0.1 * eye(nx);
 
 %% Storage
 X_hist = zeros(nx, T);
 U_hist = zeros(nu, T);
+D_hist = zeros(nx, T);
+D_true_hist = zeros(nx, T);
 
-%% MPC simulation loop
+%% ===== MPC LOOP =====
 for k = 1:T
-    % Define current prediction window with end-of-trajectory padding
-    i_end   = min(k + N - 1, T);
-    n_avail = i_end - k + 1;
-    X_win   = xref(:, k:i_end);
-    U_win   = uref(:, k:i_end);
-    if n_avail < N
-        X_win = [X_win, repmat(xref(:,end), 1, N - n_avail)];
-        U_win = [U_win, repmat(uref(:,end), 1, N - n_avail)];
-    end
 
-    xr = xref(:, k);
+    % Prediction window
+    i = min(k+N-1, T);
+    X_win = xref(:,k:i);
+    U_win = uref(:,k:i);
 
-    % Compute MPC control input
-    u = mpc_controller(x, xr, X_win, U_win, Qf);
+    xr = xref(:,k);
 
-    % Apply control input using RK4 integrator
-    x = rk4Integrator(x, u, Ts);
+    % Measurement
+    y = x;
 
-    % Store results
+    % ===== EKF =====
+    u_prev = U_hist(:, max(k-1,1));
+
+    % Split
+    xk = x_aug_hat(1:nx);
+    dk = x_aug_hat(nx+1:end);
+
+    % ---- Prediction ----
+    x_pred = rk4Integrator(xk, u_prev, dk);
+    d_pred = dk;
+
+    x_aug_pred = [x_pred; d_pred];
+
+    F = eye(nx_aug);
+    F(1:nx, nx+1:end) = eye(nx);
+
+    P_pred = F * P * F' + Qk;
+
+    % ---- Update ----
+    H = [eye(nx), zeros(nx)];
+
+    K = P_pred * H' / (H * P_pred * H' + Rk);
+
+    x_aug_hat = x_aug_pred + K*(y - H*x_aug_pred);
+
+    P = (eye(nx_aug) - K*H) * P_pred;
+    P = (P + P')/2;
+
+    % Extract
+    x_hat = x_aug_hat(1:nx);
+    d_hat = x_aug_hat(nx+1:end);
+
+    % ===== MPC =====
+    u = mpc_controller(x_hat, xr, X_win, U_win, Qf);
+
+    % System update
+    x = rk4Integrator(x, u, d_true);
+
+    % Store
     X_hist(:, k) = x;
     U_hist(:, k) = u;
+    D_hist(:, k) = d_hat;
+    D_true_hist(:, k) = d_true;
 end
 
-%% Plot position
+%% ===== PLOTS =====
+
 figure;
 subplot(3,1,1);
 plot(tq, X_hist(1,:), 'r', tq, xref(1,:), 'r--'); hold on;
 plot(tq, X_hist(2,:), 'b', tq, xref(2,:), 'b--');
-xlabel('Time [s]'); ylabel('Position [m]');
-legend('X actual','X ref','Y actual','Y ref'); grid on;
+legend('X','X ref','Y','Y ref'); grid on;
 
-%% Plot velocity
 subplot(3,1,2);
 plot(tq, X_hist(4,:), 'r', tq, xref(4,:), 'r--'); hold on;
 plot(tq, X_hist(5,:), 'b', tq, xref(5,:), 'b--');
-xlabel('Time [s]'); ylabel('Velocity [m/s]');
 legend('Vx','Vx ref','Vy','Vy ref'); grid on;
 
-%% Plot orientation
 subplot(3,1,3);
 plot(tq, X_hist(7,:), 'r', tq, xref(7,:), 'r--'); hold on;
 plot(tq, X_hist(8,:), 'b', tq, xref(8,:), 'b--');
-xlabel('Time [s]'); ylabel('Orientation [rad]');
 legend('Psi','Psi ref','Theta','Theta ref'); grid on;
 
-%% 3D trajectory
 figure;
-plot3(X_hist(1,:), X_hist(2,:), X_hist(3,:), 'b', 'LineWidth', 2); hold on;
-plot3(xref(1,:), xref(2,:), xref(3,:), 'r--', 'LineWidth', 2);
-xlabel('X [m]'); ylabel('Y [m]'); zlabel('Z [m]');
+plot3(X_hist(1,:), X_hist(2,:), X_hist(3,:), 'b'); hold on;
+plot3(xref(1,:), xref(2,:), xref(3,:), 'r--');
 grid on; axis equal;
-legend('Actual trajectory','Reference trajectory');
-title('MPC trajectory tracking');
+legend('Actual','Reference');
+title('Trajectory');
 
-%% Performance summary
-pos_err = sqrt((X_hist(1,:) - xref(1,:)).^2 + (X_hist(2,:) - xref(2,:)).^2);
-yaw_err = abs(X_hist(7,:) - xref(7,:));
-fprintf('Tracking performance \n');
-fprintf('RMS position error: %.4f m\n', sqrt(mean(pos_err.^2)));
-fprintf('Max position error: %.4f m\n', max(pos_err));
-fprintf('RMS yaw error: %.4f deg\n', sqrt(mean(yaw_err.^2)) * 180/pi);
+figure;
+subplot(3,1,1);
+plot(tq, D_true_hist(4,:), 'k--'); hold on;
+plot(tq, D_hist(4,:), 'b'); grid on;
 
-%% Terminal set membership check
-dx_final = X_hist(:,end) - xref(:,end);
-dx_final(7) = atan2(sin(dx_final(7)), cos(dx_final(7)));
-V_final = dx_final' * Qf * dx_final;
-fprintf('Terminal set check \n');
-fprintf('V(x_T) = %.6f,  alpha = %.6f\n', V_final, alpha);
-if V_final <= alpha
-    fprintf('Final state is INSIDE the terminal set.\n');
-else
-    fprintf('Final state is OUTSIDE the terminal set.\n');
-end
+subplot(3,1,2);
+plot(tq, D_true_hist(5,:), 'k--'); hold on;
+plot(tq, D_hist(5,:), 'b'); grid on;
 
+subplot(3,1,3);
+plot(tq, D_true_hist(7,:), 'k--'); hold on;
+plot(tq, D_hist(7,:), 'b'); grid on;

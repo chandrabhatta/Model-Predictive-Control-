@@ -1,116 +1,102 @@
-%% Generate a reference trajectory for MPC
-
 function [xref, uref, tq] = reference_generator(x, y, v_des, N)
-    % Defining waypoints:
 
-    %x = [0 2 1.6 4.3];
-    %y = [0 1 3.6 3.10];
+% --- Arc-length timing ---
+dx = diff(x);
+dy = diff(y);
+dist = sqrt(dx.^2 + dy.^2);
 
-    % Distance (m), time (s), Speed (m/s), angle (rad), 
+arc_length = [0 cumsum(dist)];
+t = arc_length / v_des;
 
-    % --- Arc-length based timing ---
-    dx = diff(x); % difference between waypoints
-    dy = diff(y);
-    dist = sqrt(dx.^2 + dy.^2); % distance between waypoints
+% --- spline trajectory ---
+ppx = spline(t, x);
+ppy = spline(t, y);
 
-    arc_length = [0 cumsum(dist)]; % cumulutively sum the distances
-    %v_des = 2; % Constant speed of 2 m/s is assumed for the moon rover
-    t = arc_length / v_des; % time steps
+tq = linspace(0, t(end), N);
 
-    % --- Spline construction ---
-    ppx = spline(t, x);
-    ppy = spline(t, y);
+xq = ppval(ppx, tq);
+yq = ppval(ppy, tq);
+zq = lunarTerrain(xq, yq);
 
-    % --- Query time ---
-    tq = linspace(0, t(end), N);
+% --- velocities (from spline derivatives, smooth) ---
+ppx_dot = fnder(ppx, 1);
+ppy_dot = fnder(ppy, 1);
 
-    % --- Position ---
-    xq = ppval(ppx, tq);
-    yq = ppval(ppy, tq);
-    zq = lunarTerrain(xq,yq);
+vx = ppval(ppx_dot, tq);
+vy = ppval(ppy_dot, tq);
 
-    % --- Velocity ---
-    ppx_dot = fnder(ppx);
-    ppy_dot = fnder(ppy);
+% smooth velocities (IMPORTANT FIX)
+vx = smoothdata(vx, "sgolay", 7);
+vy = smoothdata(vy, "sgolay", 7);
 
-    vx = ppval(ppx_dot, tq);
-    vy = ppval(ppy_dot, tq);
+% --- vertical motion ---
+vz = gradient(zq, tq);
+vz = smoothdata(vz, "sgolay", 7);
 
-    % vertical component:
+% --- orientation ---
+psi = atan2(vy, vx);
+psi = unwrap(psi);
 
-    vz = gradient(zq, tq);
+theta = atan2(vz, sqrt(vx.^2 + vy.^2));
 
-    % --- Heading (Yaw) ---
-    psi = atan2(vy, vx);
-    psi = unwrap(psi);
+% --- smoothed angular rates ---
+psi_dot = gradient(psi, tq);
+theta_dot = gradient(theta, tq);
 
-    % --- Theta (Pitch) ---
-    theta = atan2(vz, sqrt(vx.^2 + vy.^2));
+psi_dot = smoothdata(psi_dot, "movmean", 5);
+theta_dot = smoothdata(theta_dot, "movmean", 5);
 
-    % Visualize the lunar terrain:
+% --- accelerations (smoothed instead of raw gradient spikes) ---
+ax = gradient(vx, tq);
+ay = gradient(vy, tq);
 
-    [X, Y] = meshgrid( ...
-        linspace(min(xq)-1, max(xq)+1, 100), ...
-        linspace(min(yq)-1, max(yq)+1, 100));
+ax = smoothdata(ax, "movmean", 5);
+ay = smoothdata(ay, "movmean", 5);
 
-    % Evaluate the terrain 
-    Z = lunarTerrain(X,Y);
+az = gradient(vz, tq) - 1.62;
+az = smoothdata(az, "movmean", 5);
 
-    % Input reference:
+% --- inputs ---
+uref = [ax;
+        ay;
+        az;
+        theta_dot;
+        psi_dot];
 
-    % --- Accelerations ---
-    ax = gradient(vx, tq);
-    ay = gradient(vy, tq);
-    az = gradient(vz, tq) - 9.81;   % subtract gravity (CHANGE LATER)
+% --- IMPORTANT: clamp inputs to actuator limits ---
+u_min = [-3; -2; -2; -1; -1];
+u_max = [ 3;  2;  2;  1;  1];
 
-    % Yaw rate:
-    psi_dot = gradient(psi, tq);
-    wbz = psi_dot;
+uref = max(u_min, min(u_max, uref));
 
-    % Pitch rate:
-    theta_dot = gradient(theta, tq);
-    
-    wby = theta_dot;
+% --- states ---
+xref = [xq;
+        yq;
+        zq;
+        vx;
+        vy;
+        vz;
+        psi;
+        theta];
 
-    figure;
-    surf(X, Y, Z, 'EdgeColor', 'none');
-    colormap(gray);
-    hold on;
+% --- plotting (unchanged) ---
+figure;
+[X, Y] = meshgrid( ...
+    linspace(min(xq)-1, max(xq)+1, 100), ...
+    linspace(min(yq)-1, max(yq)+1, 100));
 
-    plot3(xq, yq, zq, 'r', 'LineWidth', 2);
+Z = lunarTerrain(X,Y);
 
-    xlabel('X (m)');
-    ylabel('Y (m)');
-    zlabel('Z (m)');
-    title('Lunar Terrain with Rover Trajectory');
+surf(X, Y, Z, 'EdgeColor', 'none');
+colormap(gray); hold on;
+plot3(xq, yq, zq, 'r', 'LineWidth', 2);
 
-    view(45, 30);
-    axis tight;
-    grid on;
-
-    shading interp;
-    
-    camlight;
-    lighting gouraud;
-
-    % --- State reference ---
-    xref = [xq;
-            yq;
-            zq;
-            vx;
-            vy;
-            vz;
-            psi;
-            theta];
-
-    % --- Input reference ---
-    uref = [ax;
-            ay;
-            az;
-            wby;
-            wbz];
-
-    % --- Add terrain map Pz = h(x,y) ---
+xlabel('X'); ylabel('Y'); zlabel('Z');
+title('Lunar Terrain with Rover Trajectory');
+view(45,30);
+axis tight; grid on;
+shading interp;
+camlight; lighting gouraud;
 
 end
 

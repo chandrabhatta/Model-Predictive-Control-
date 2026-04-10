@@ -46,7 +46,7 @@ for idx = 1:size(weight_sets, 1)
             X_win = [X_win, repmat(xref(:,end), 1, N - n_avail)];
             U_win = [U_win, repmat(uref(:,end), 1, N - n_avail)];
         end
-        u = mpc_controller(x, xref(:,k), X_win, U_win, Qf, Q, R);
+        u = mpc_controller(x, xref(:,k), X_win, U_win, Qf); % x, xr, X_ref_win, U_ref_win, Qf
         x = rk4Integrator(x, u);
         X_hist(:,k) = x;
         U_hist(:,k) = u;
