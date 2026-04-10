@@ -29,4 +29,6 @@ function z = lunarTerrain(x, y)
         z = z - A * exp(-((x-xc).^2 + (y-yc).^2)/(2*s^2));
     end
 
+    disp('Global reference input ranges:')
+
 end

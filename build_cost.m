@@ -24,7 +24,7 @@ Rbar = kron(eye(N), R);
 H = G' * Qbar * G + Rbar;
 
 % Linear term with reference tracking
-f = G' * Qbar * (F*dx0);
+f = G' * Qbar * (F*dx0) - Rbar * U_ref_stack;
 
 %% These are introduced to add soft terrain constraints (REMOVE IF NEEDED):
 % --- Add slack variables (epsilon) ---
